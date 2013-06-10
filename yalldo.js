@@ -64,7 +64,7 @@ $(document).ready(function() {
 	click("clubfollowbutton",function() { clubfollow(); });
 	click("clubunfollowbutton",function() { clubunfollow(); });
 	click("clubphotobutton",function() { target = "club"; page('photo'); });
-	click("createbutton",function() { page('create'); createFlight(); });					//Added the createFlight function that prefill Name field(set Flight ID)--->
+	click("createbutton",function() { page('create'); planFlight(); });						//Added the createFlight function that prefill Name field(set Flight ID)--->
 	click("createnext",function() { page('notify');  createFlight("save"); });				//Added createFlight("save") that insert flight info to database--->
 	click("createsubmit",function() { createsubmit(); });
 	click("eventsmenu0",function() { eventsmenu(0); });

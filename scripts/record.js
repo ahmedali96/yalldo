@@ -75,7 +75,7 @@ function resetChr() {
     seconds = 0;
     mints = 0;
     startchron = 0;
-    document.getElementById('stopwatch').innerHTML = format(hours) + ' : ' + format(mints) + ' : ' + format(seconds);
+    document.getElementById('stopwatch').innerHTML = format(hours) + ':' + format(mints) + ':' + format(seconds);
 }
 
 //Function to format any time unit (adds '0' if less than 10)
@@ -114,15 +114,17 @@ function resetVariables() {
     c_Time = '';
     c_Sport = '';
     c_Name = '';
-    canBeSaved = false; //Note: For testing ""ONLY"" set to "true", used to determine if there is enough GPS points acquired to send the flight to the server
+    c_Priv = '';
+    canBeSaved = true; //Note: For testing ""ONLY"" set to "true", used to determine if there is enough GPS points acquired to send the flight to the server
 }
 
+sourcePlanFlight = false;
 flightId = '';
 GPSFileName = ''; //GPS data file name to be saved to the device
 resetVariables();
 
-var neededpoints = 6; //6 default
-var neededaccuracy = 100; //50 default
+var neededpoints = 1; //6 default
+var neededaccuracy = 500; //50 default
 var selectedUnits = '';
 var selectedUseknots = '';
 var selectedNotifications = '';
@@ -142,7 +144,7 @@ function startRecording(string) {
         startDB("addGPSTrack");
         startDB("createFlight");
         endOfRecord = '';
-
+        recordActive = true; //flag to determine if there's a flight started or paused
     }
 
     var options = {
@@ -200,12 +202,6 @@ function onSuccess(position) {
             else $('#maxaltitude').html(maxAlt);
         }
     }
-
-
-    //if( !GPSURLUpdated ) startDB("updateGPSURL"); 
-
-    //$('#flight_name').attr('value', preFFormat);
-    //$('#createname').attr('value', preFFormat);
 }
 
 //onError Callback receives a PositionError object
@@ -249,11 +245,13 @@ function onConfirm(buttonIndex) {
             createFlight("recorded");
 
         }
-    } else {
-        //Actions taken when the user decides to delete the current flight: 1- delete tables from database 2- Reset the variables.
+    } else if(buttonIndex == 0) {
+    	    $('#stop_button').hide();
+    } else { 
+    	 //Actions taken when the user decides to delete the current flight: 1- delete tables from database 2- Reset the variables.
         stopRecording();
         startDB("dropTrace");
-
+        recordActive = false;
     }
 
 }
@@ -301,9 +299,9 @@ function writeGPSData(string) {
 
     function gotFS(fileSystem) {
         fileSystem.root.getFile(GPSFileName, {
-                create: true,
-                exclusive: false
-            }, gotFileEntry, fail);
+            create: true,
+            exclusive: false
+        }, gotFileEntry, fail);
     }
 
     function gotFileEntry(fileEntry) {
@@ -524,6 +522,12 @@ function startDB(string, tableid, colName) {
 
         }
 
+        if (key == "planFlight") {
+            //Query to be executed to plan a new flight and insert its details to the database.
+            tx.executeSql('INSERT INTO FLIGHTS(flightid, fname, desc, sport, timestamp, gpsfilename, status, ispublic, islogged, onserver) VALUES ("' + planId + '", "' + planName + '", "' + planDesc + '", "' + planSport + '", "' + planTime + "00:00:00" +'", "' + planGPS + '", "canBeSaved" ,0 , 0, 0)');
+
+        }
+
         if (key == "addGPSTrack") {
 
             //Query to be executed for adding the GPS data to the database.
@@ -549,9 +553,9 @@ function startDB(string, tableid, colName) {
         }
 
         if (key == "updateAllIds") {
-            console.log("****update FlightId of the flight & GPS & pictures id's" + flightId + ' the serverId we got =' + serverFlightId);
-            tx.executeSql('UPDATE FLIGHTS SET flightid = ? , onserver = ? WHERE flightid= ? ', [serverFlightId, 1, flightId], done1, errorCB);
-            tx.executeSql('UPDATE FILES SET flightid = ? WHERE flightid= ? ', [serverFlightId, flightId], done2, errorCB);
+            console.log("****update FlightId of the flight & GPS & pictures id's" + tableid + ' the serverId we got =' + colName);
+            tx.executeSql('UPDATE FLIGHTS SET flightid = ? , onserver = ? WHERE flightid= ? ', [colName, 1, tableid], done1, errorCB);
+            tx.executeSql('UPDATE FILES SET flightid = ? WHERE flightid= ? ', [colName, tableid], done2, errorCB);
 
             function done1() {
                 console.log('Updating the Flight Id is done');
@@ -580,9 +584,7 @@ function startDB(string, tableid, colName) {
 
         if (key == "saveFlight") {
             console.log('The flight Id to be looked for is ' + flightId);
-            tx.executeSql('UPDATE FLIGHTS SET distance = ? , period = ? , timestampstop = ? , fname = ? WHERE flightid= ? ', [totalDistance, totalTime, endOfRecord, preFFormat, flightId], updateDone2, errorCB);
-
-            //tx.executeSql('REPLACE INTO FLIGHTS (flightid, distance, period, timestampstop, fname, timestamp) VALUES ("' + flightId + '", "' + totalDistance + '", "' + totalTime + '", "' + endOfRecord + '", "' + preFFormat + '","' + c_Time + '")');
+            tx.executeSql('UPDATE FLIGHTS SET distance = ? , period = ? , timestampstop = ? , fname = ?,desc = ?, sport = ?, ispublic = ? WHERE flightid= ? ', [totalDistance, totalTime, endOfRecord, preFFormat, c_Desc, c_Sport, c_Priv, flightId], updateDone2, errorCB);
 
             function updateDone2() {
                 console.log('Updating the totalDistance and Period is done: time =' + totalTime + ' distance= ' + totalDistance + preFFormat);
@@ -632,7 +634,7 @@ function startDB(string, tableid, colName) {
                 for (var i = 0; i < len; i++) {
 
                     console.log('this is the name from the dbstart' + results.rows.item(i).flightid + ' & ' + results.rows.item(i).longitude + ' & ' + results.rows.item(i).onserver);
-                    AfterRecording("x", results.rows.item(i));
+                    AfterRecording("dataRestore", results.rows.item(i));
 
                 }
             }
@@ -699,25 +701,24 @@ function startDB(string, tableid, colName) {
     // Transaction error callback
 
     function errorCB(tx, err) {
-        //alert("Error processing SQL: " + key + err);
+        console.log("Error processing SQL: " + key + err);
     }
 
     // Transaction success callback
 
     function successCB() {
         console.log(key + " success!");
+
         if (key == "getPictures") uploadAllPic(serverFlightId, "pictures");
+
         if (key == "getSetting" && repeat == true) {
             startDB('getSetting');
             console.log("Now its repeated");
         }
-        if (key == "getSetting" && repeat == false) {
-            //Here's goes the setting up of the units and fields of the UI
-            setUnits();
-        }
-        if (key == "updateSetting") {
-            startDB('getSetting');
-        }
+
+        if (key == "getSetting" && repeat == false) setUnits();
+
+        if (key == "updateSetting") startDB('getSetting');
     }
 
 }
@@ -730,9 +731,9 @@ var photodata = ''; //variable for holding the data of any picture captured.
 
 function photocamera() {
     navigator.camera.getPicture(photocamerasuc, photocameraerr, {
-            quality: 50,
-            destinationType: Camera.DestinationType.DATA_URL
-        });
+        quality: 50,
+        destinationType: Camera.DestinationType.DATA_URL
+    });
 }
 
 function photocamerasuc(d) {
@@ -839,16 +840,16 @@ function uploadAllPic(flight_id, type) {
             var item = syncFilesArray[i];
 
             ajax("addcomment", {
-                    content_id: serverFlightId,
-                    message: "message",
-                    content_type: "event",
-                    photo: item.photodata
-                }, function (d) {
-                    info("picture saved");
-                    console.log("Picture was sent to server attached to:  " + serverFlightId + " again " + flightId); //both Id's should be the same (just a test)
-                    console.log(d);
-                    startDB("setOnServer", item.id);
-                });
+                content_id: serverFlightId,
+                message: "message",
+                content_type: "event",
+                photo: item.photodata
+            }, function (d) {
+                info("picture saved");
+                console.log("Picture was sent to server attached to:  " + serverFlightId + " again " + flightId); //both Id's should be the same (just a test)
+                console.log(d);
+                startDB("setOnServer", item.id);
+            });
         }
 
         //Third Step: Null the array
@@ -881,7 +882,7 @@ function internetConnection() {
     return interNet;
 }
 
-function AfterRecording(key, item) {
+function AfterRecording(key, item, planName, planDesc, planTime, planSport, planPrivacy, planGPS) {
     //Show the Create Flight Page...
     //page('create'); show("backbutton"); hide("plusmenu");
 
@@ -890,7 +891,7 @@ function AfterRecording(key, item) {
     //flightid, name, desc, sport, timestamp, latitude, longitude, distance, period, timestampstop, status, ispublic, islogged, onserver
     //totalDistance, totalTime, endOfRecord, preFFormat, flightId
 
-    if (key == "x") {
+    if (key == "dataRestore") {
 
         c_Time = item.timestamp;
         c_Name = item.fname;
@@ -900,40 +901,67 @@ function AfterRecording(key, item) {
         c_Desc = item.desc;
         c_Sport = item.sport;
         c_End = item.timestampstop;
+        c_Priv = item.ispublic;
         GPSFileName = item.gpsfilename;
 
         console.log("Restored Data: " + preFFormat + " & " + flightId + " & " + firstLat + " & " + firstLon + " & " + c_Desc + " & " + c_Sport + " & " + c_Time + " & " + c_End + " & " + GPSFileName);
 
-    } else {
+        getServerId(flightId, c_Name, c_Desc, c_Time, firstLat, firstLon, c_Sport, c_End, GPSFileName);
+        
+        console.log('The Database variables are: ' + c_Name + c_Desc + c_Sport + c_Time);
 
-        preFFormat = formattedCTime("namePreFill", startOfRecord);
+        resetVariables();
+        
+    } else if (key == "plan") {
+
+        startDB("planFlight"); //Inserting a new flight with the info planed by the user.
+
+        console.log("Saving the planed flight: " + planId + ' & ' + planName + ' & ' + planDesc + ' & ' + planTime);
+
+        getServerId(planId, planName, planDesc, planTime, 99, 99, planSport, 0, planGPS);
+
+
+    } else {
+        preFFormat = formattedCTime("namePreFill", startOfRecord); //????????????????????????????????
 
         console.log("This is the StartOfRecord Time " + preFFormat);
 
         endOfRecord = formattedCTime("ETimeAjax", endOfRecord);
-        c_Time = formattedCTime("STimeAjax", startOfRecord);
 
-        //This stores the totalDistance, period of the flight, the suggested name for the flight & end time of the flight.
+        preFFormat = $('#createname').val();
+        c_Time = formattedCTime("STimeAjax", startOfRecord);
+        c_Desc = $('#createdesc').val();
+        c_Sport = $('#createsport').val();
+        c_Priv = $('#createstatus').val();
+        c_End = endOfRecord;
+
+        //This stores the totalDistance, period of the flight, the suggested name for the flight, User Discription & Sport & end time of the flight.
         startDB("saveFlight");
-        // endOfRecord, preFFormat, flightId
+
         console.log("just testing the database insertion:" + "\n :" + endOfRecord + " - total Time= " + totalTime);
 
-
-
-
+        getServerId(flightId, preFFormat, c_Desc, c_Time, firstLat, firstLon, c_Sport, c_End, GPSFileName);
+        
+        console.log('The Database variables are: ' + c_Name + c_Desc + c_Sport + c_Time);
+            
+        resetVariables();
     }
-    console.log('The Database variables are: ' + c_Name + c_Desc + c_Sport + c_Time);
+
+}
+
+function getServerId(f_id, f_name, f_desc, f_time, f_lat, f_lon, f_sport, f_end, f_gpsfname) {
+
     if (internetConnection()) {
         var tobesent =
             ajax("editevent", {
                 id: 0,
-                name: c_Name,
-                description: c_Desc,
-                start: c_Time,
+                name: f_name,
+                description: f_desc,
+                start: f_time,
                 end: "0000-00-00 00:00:00", //This should be changed to c_End but waiting for backend.
-                latitude: firstLat,
-                longitude: firstLon,
-                sports_id: 0
+                latitude: f_lat,
+                longitude: f_lon,
+                sports_id: f_sport
             }, function (d) {
 
                 alert(d);
@@ -942,7 +970,8 @@ function AfterRecording(key, item) {
                 var obj = JSON.parse(d);
                 serverFlightId = obj.id;
                 console.log("The Flight Id from the server is " + serverFlightId);
-                AfterReceivingId();
+                
+                AfterReceivingId(f_gpsfname, f_id, serverFlightId);
 
                 console.log("Check this " + d);
                 ajax("getevents", {}, function (d) {
@@ -957,51 +986,65 @@ function AfterRecording(key, item) {
         info("No internet connection, your flight will be synced later.");
     }
 
-    resetVariables();
 }
 
-function AfterReceivingId() {
-    allCoords = '';
-    writeGPSData("read");
-    //Update the Database "tables" with the new Flight ID we got from the server and set it instead of the old initial one..
-    startDB("updateAllIds");
+function AfterReceivingId( key, flightId, serverFlightId ) {
+    if(key!="noneYet") { 
+		allCoords = '';
+		
+		writeGPSData("read");
 
-    console.log("the stuff to be sent: Flight ID " + serverFlightId + " and the coordinates: " + allCoords);
+		//Update the Database "tables" with the new Flight ID we got from the server and set it instead of the old initial one..
+		startDB("updateAllIds", flightId, serverFlightId);
 
-    //Send the GPS Trace we Recorded to the server then Set its status to ONSERVER = 1
-    ajax("savetrace", {
-            id: serverFlightId,
-            gps: allCoords
-        }, function (d) {
-            //alert("gps saved");	
-            console.log(d);
-            //Set the GPS Trace File Status to uploaded.
-            startDB("setOnServer");
-            info("gps saved");
-        });
+		console.log("the stuff to be sent: Flight ID " + serverFlightId + " and the coordinates: " + allCoords);
 
-    //Gather all the pictures attached to the current flight(id) to send them all.
-    startDB("getPictures");
+		//Send the GPS Trace we Recorded to the server then Set its status to ONSERVER = 1
+		ajax("savetrace", {
+		    id: serverFlightId,
+		    gps: allCoords
+		}, function (d) {
+		    //alert("gps saved");	
+		    console.log(d);
+		    //Set the GPS Trace File Status to uploaded.
+		    startDB("setOnServer");
+		    info("gps saved");
+		});
 
+		//Gather all the pictures attached to the current flight(id) to send them all.
+		startDB("getPictures");
+		
+	} else {
+		startDB("updateAllIds", flightId, serverFlightId); 
+	}
 }
 
+var fSetupSource = ''; //to determine what initiated "create flight" is it a gps record or plan a new flight
 
 function createFlight(key) {
 
     if (key == "recorded") {
         $("#tr_date").hide();
         $('#createname').attr('value', preFFormat);
+        sourcePlanFlight = false;
+        page('create');
 
     } else if (key == "save") {
-        AfterRecording();
-    } else {
-        $("#tr_date").show();
-    }
 
-    page('create');
+        if (sourcePlanFlight) {
+            //Called after the "Next" of plan a new flight is clicked.
+            AfterRecording("plan", null, planName, planDesc, planTime, planSport, planPrivacy, planGPS);
+
+        } else {
+            //Called after the "Next" of a Record Session is clicked.
+
+            AfterRecording();
+        }
+    }
 }
 
-/*Function to be called at the launch of the app, to check/set the units for the user.
+/*
+	Function to be called at the launch of the app, to check/set the units for the user.
 		1- check if there's an inserted settings row or not: 
 			a) yes, then get the settings from it.
 			b) No, then insert and set default settings into database.
@@ -1035,11 +1078,13 @@ function setUnits() {
 function unit(metric) {
 
     if (metric) {
+        //alert("metric units is set");
         speedname = "km/h";
         distancename = "m";
         temperaturename = "c";
 
     } else {
+        //alert("mperial units is set");
         speedname = "mp/h";
         distancename = "ft";
         temperaturename = "f";
@@ -1059,8 +1104,8 @@ function unit(metric) {
     $('#settingsnoti').val(selectedNotifications);
     $('#settingslang').val(selectedLanguage);
     $('#createsport').val(selectedSport);
-	
-	reloadValues();
+
+    reloadValues();
 }
 
 function optionsHandlers() {
@@ -1133,7 +1178,7 @@ function reloadValues() {
 
     if (metric) {
         $('#totaldistance').html(totalDistance);
-      //  alert('meters=' + totalDistance);
+        //  alert('meters=' + totalDistance);
         $('#totaldistance').hide();
         $('#totaldistance').show();
     } else {
@@ -1143,22 +1188,34 @@ function reloadValues() {
         $('#totaldistance').hide();
         $('#totaldistance').show();
     }
+}
 
+var planName = '';
+var planDesc = '';
+var planTime = '';
+var planSport = '';
+var planPrivacy = '';
+    
+function planFlight() {
+
+    $("#tr_date").show();
+
+    var planFName = formattedCTime("namePreFill", new Date());
+
+    $('#createname').attr('value', planFName);
+
+    sourcePlanFlight = true;
+
+    planName = $('#createname').val();
+    planDesc = $('#createdesc').val();
+    planTime = $('#createdate').val(); //Here we should validate the date actually.. for later..
+    planSport = $('#createsport').val();
+    planPrivacy = $('#createstatus').val();
+	
+	console.log(planTime + ' & ' + planName + ' & ' + planSport + ' & ' + planPrivacy);
+    var t = formattedCTime('', '');
+    planId = 'PF' + t; //setting a plan flight id (flightId) with the current time stamp
+    planGPS = 'noneYet'; //setting a GPS file name with the current time stamp
 
 
 }
-/*
-   //Defaults: units, useknots, notifications, language, lastsport		1, 0, 2, 1, 1
-                    selectedUnits		 	= results.rows.item(0).units;
-                    selectedUseknots	 	= results.rows.item(0).useknots;
-                    selectedNotifications	= results.rows.item(0).notifications;
-                    selectedLanguage 		= results.rows.item(0).language;
-                    selectedSport 		 	= results.rows.item(0).lastsport;  
-                    
-                    
-        c_Name = $('#createname').val();
-        c_Desc = $('#createdesc').val();
-        c_Sport = $('#createsport').val();
-        c_Time = $('#createtime').val(); //Here we should validate the date actually.. for later..
-        c_Status = $('#createstatus').val();
-		*/
