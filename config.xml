@@ -10,10 +10,10 @@
 	<feature name="http://api.phonegap.com/1.0/file"/>
 	<feature name="http://api.phonegap.com/1.0/notification"/>-->
 
-	<icon src="icon.png" width="64" height="64" gap:role="default" />
+	<!--<icon src="icon.png" width="64" height="64" gap:role="default" />
 	<icon src="icon72.png" width="72" height="72" gap:platform="android" gap:density="hdpi" />
 	<icon src="icon96.png" width="96" height="96" gap:platform="android" gap:density="xhdpi" />
-	<icon src="icon72.png" width="72" height="72" gap:platform="ios" />
+	<icon src="icon72.png" width="72" height="72" gap:platform="ios" />-->
 
 	<!--<gap:splash src="splash.png" />
 	<gap:splash src="images/splash-160x220.png" gap:platform="android" gap:density="ldpi" />
