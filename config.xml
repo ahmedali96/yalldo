@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<widget xmlns="http://www.w3.org/ns/widgets" id="http://www.yalldo.com/mobile" version="2.0 Beta" height="640" width="960" viewmodes="fullscreen">
+<widget xmlns="http://www.w3.org/ns/widgets" id="com.yalldo.mobile">
  
 	<name>YALLDO Flying</name>
 	<description>YALLDO Flying will get you in the air with your buddies or with new people. Cause flying together is always more fun.</description>
@@ -10,10 +10,6 @@
 	<feature name="http://api.phonegap.com/1.0/media"/>
 	<feature name="http://api.phonegap.com/1.0/file"/>
 	<feature name="http://api.phonegap.com/1.0/notification"/>
-	<feature name="http://api.phonegap.com/1.0/camera"/>
-
-	<preference name="phonegap-version" value="2.7.0" />
-	<preference name="target-device" value="universal" />
 
 	<icon src="icon.png" width="64" height="64" gap:role="default" />
 	<icon src="icon72.png" width="72" height="72" gap:platform="android" gap:density="hdpi" />
